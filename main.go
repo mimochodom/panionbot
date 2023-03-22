@@ -4,7 +4,7 @@ import (
 	"fmt"
 	"log"
 	"os"
-	"panionbot/horoscopeParse"
+	"panionbot/commandModule"
 )
 
 func main() {
@@ -15,5 +15,6 @@ func main() {
 	botToken := string(bytes[:])
 	fmt.Println(botToken)
 
-	horoscopeParse.HoroscopeParse("https://www.predskazanie.ru/daily_horoscope/?day=&s=1")
+	fmt.Printf(commandModule.GetHoroscope("водолей"))
+	fmt.Println(commandModule.Help())
 }
