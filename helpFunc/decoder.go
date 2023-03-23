@@ -2,7 +2,7 @@ package helpFunc
 
 import "golang.org/x/text/encoding/charmap"
 
-func Decoder(title string) string {
+func DecoderToWin1251(title string) string {
 	dec := charmap.Windows1251.NewDecoder()
 	// Разные кодировки = разные длины символов.
 	newBody := make([]byte, len(title)*2)

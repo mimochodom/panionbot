@@ -31,7 +31,7 @@ func horoscopeParse(url string) string {
 		log.Fatal(err)
 	}
 	textHoroscope := doc.Find(".text-link").Contents().Text()
-	return helpFunc.Decoder(textHoroscope)
+	return helpFunc.DecoderToWin1251(textHoroscope)
 }
 
 func GetHoroscope(znak string) string {
