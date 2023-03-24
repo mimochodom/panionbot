@@ -23,7 +23,7 @@ func GetWeatherByName(cityName string) string {
 		}
 	}(res.Body)
 	if res.StatusCode != 200 {
-		log.Fatalf("status code error: %d %s", res.StatusCode, res.Status)
+		return "Похоже что такой локации нет"
 	}
 
 	b, err := io.ReadAll(res.Body)
