@@ -1,7 +1,6 @@
 package main
 
 import (
-	"fmt"
 	"log"
 	"panionbot/commandModule"
 	"panionbot/helpFunc"
@@ -24,16 +23,27 @@ func main() {
 
 	u := tgbotapi.NewUpdate(0)
 	u.Timeout = 60
-
 	updates := bot.GetUpdatesChan(u)
 
 	for update := range updates {
 
 		if update.Message != nil {
-			// Create a new MessageConfig. We don't have text yet,
-			// so we leave it empty.
-			flag := false
 			msg := tgbotapi.NewMessage(update.Message.Chat.ID, update.Message.Text)
+
+			if update.Message.Command() == "weather_report" && update.Message.Chat.Type == "private" {
+				msg.Text = "Напишите город в котором хотите узнать погоду"
+
+				msg.ReplyMarkup = tgbotapi.ForceReply{ForceReply: true}
+
+				if _, err := bot.Send(msg); err != nil {
+					log.Panic(err)
+				}
+			}
+
+			if update.Message.ReplyToMessage != nil {
+				msg.Text = commandModule.GetWeatherByName(update.Message.Text)
+
+			}
 			if update.Message.IsCommand() { // ignore any non-command Messages
 				// Extract the command from the Message.
 				switch update.Message.Command() {
@@ -43,25 +53,14 @@ func main() {
 					msg.Text = commandModule.GetAnek()
 				case "horoscope":
 					msg.ReplyMarkup = keyboard.Horoscope
-				case "weather_report":
-					msg.Text = "Напишите город в котором хотите узнать погоду"
-					msg.ReplyMarkup = tgbotapi.ForceReply{ForceReply: true}
-					flag = true
-					goto L
-				default:
-					msg.Text = "Ну извини, не могу"
 				}
+
+			}
+			if update.Message.Command() != "weather_report" {
 				if _, err := bot.Send(msg); err != nil {
 					log.Panic(err)
 				}
-
 			}
-		L:
-			if flag == true {
-				fmt.Print(commandModule.GetWeatherByName(update.Message.Text))
-				flag = false
-			}
-
 		} else if update.CallbackQuery != nil {
 			// Respond to the callback query, telling Telegram to show the user
 			// a message with the data received.

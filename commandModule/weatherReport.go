@@ -25,6 +25,9 @@ func GetWeatherByName(cityName string) string {
 	if res.StatusCode != 200 {
 		return "Похоже что такой локации нет"
 	}
+	if res.StatusCode == 404 {
+		return "Блин, наверное обидно, что такого нет"
+	}
 
 	b, err := io.ReadAll(res.Body)
 	if err != nil {
