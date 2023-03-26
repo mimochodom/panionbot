@@ -28,24 +28,32 @@ func main() {
 	for update := range updates {
 
 		if update.Message != nil {
+
 			msg := tgbotapi.NewMessage(update.Message.Chat.ID, update.Message.Text)
 
 			if update.Message.Command() == "weather_report" && update.Message.Chat.Type == "private" {
-				msg.Text = "Напишите город в котором хотите узнать погоду"
-
-				msg.ReplyMarkup = tgbotapi.ForceReply{ForceReply: true}
+				msg.ReplyMarkup = keyboard.Weather
 
 				if _, err := bot.Send(msg); err != nil {
 					log.Panic(err)
 				}
 			}
 
+			if update.Message.Text == "По названию" {
+				msg.Text = "Напишите город в котором хотите узнать погоду"
+				msg.ReplyMarkup = tgbotapi.ForceReply{ForceReply: true}
+			}
+
 			if update.Message.ReplyToMessage != nil {
 				msg.Text = commandModule.GetWeatherByName(update.Message.Text)
 
+				if update.Message.Location != nil {
+					msg.Text = commandModule.GetWeatherByLocation(update.Message.Location.Latitude, update.Message.Location.Longitude)
+				}
 			}
-			if update.Message.IsCommand() { // ignore any non-command Messages
-				// Extract the command from the Message.
+
+			if update.Message.IsCommand() {
+
 				switch update.Message.Command() {
 				case "start":
 					msg.Text = "Я пока ещё жив"
@@ -54,20 +62,20 @@ func main() {
 				case "horoscope":
 					msg.ReplyMarkup = keyboard.Horoscope
 				}
-
 			}
+
 			if update.Message.Command() != "weather_report" {
 				if _, err := bot.Send(msg); err != nil {
 					log.Panic(err)
 				}
 			}
 		} else if update.CallbackQuery != nil {
-			// Respond to the callback query, telling Telegram to show the user
-			// a message with the data received.
 			callback := tgbotapi.NewCallback(update.CallbackQuery.ID, update.CallbackQuery.Data)
+
 			if _, err := bot.Request(callback); err != nil {
 				panic(err)
 			}
+
 			horoscopeText := strings.ToUpper(update.CallbackQuery.Data) + ": " + commandModule.GetHoroscope(update.CallbackQuery.Data)
 			msg := tgbotapi.NewMessage(update.CallbackQuery.Message.Chat.ID, horoscopeText)
 			bot.Send(msg)

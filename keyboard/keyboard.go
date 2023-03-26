@@ -26,3 +26,10 @@ var Horoscope = tgbotapi.NewInlineKeyboardMarkup(
 		tgbotapi.NewInlineKeyboardButtonData("♓рыбы", "рыбы"),
 	),
 )
+
+var Weather = tgbotapi.NewReplyKeyboard(
+	tgbotapi.NewKeyboardButtonRow(
+		tgbotapi.NewKeyboardButton("По названию"),
+		tgbotapi.NewKeyboardButtonLocation("По геолокации"),
+	),
+)

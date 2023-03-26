@@ -45,6 +45,44 @@ func GetWeatherByName(cityName string) string {
 	return prognoz
 }
 
+func GetWeatherByLocation(lat float64, lon float64) string {
+	latString := fmt.Sprintf("%f", lat)
+	lonString := fmt.Sprintf("%f", lon)
+	API_WEATHER_KEY := helpFunc.GetTokenFromFile("./token/weatherTokenAPI.txt")
+	url := "https://api.openweathermap.org/data/2.5/weather?lat=" + latString + "&lon=" + lonString + "&lang=ru&units=metric&appid=" + API_WEATHER_KEY
+	res, err := http.Get(url)
+	if err != nil {
+		log.Fatal(err)
+	}
+	defer func(Body io.ReadCloser) {
+		err := Body.Close()
+		if err != nil {
+			fmt.Println(err)
+		}
+	}(res.Body)
+	if res.StatusCode != 200 {
+		return "Похоже что такой локации нет"
+	}
+	if res.StatusCode == 404 {
+		return "Блин, наверное обидно, что такого нет"
+	}
+
+	b, err := io.ReadAll(res.Body)
+	if err != nil {
+		log.Fatalln(err)
+	}
+	var w weather
+	err2 := json.Unmarshal(b, &w)
+	if err2 != nil {
+		return "JSON: CANT UNMARSHAL"
+	}
+	temp := fmt.Sprintf("%.2f", w.Main.Temp)
+	feelsLike := fmt.Sprintf("%.2f", w.Main.FeelsLike)
+	windSpeed := fmt.Sprintf("%.2f", w.Wind.Speed)
+	prognoz := w.Name + ": температура " + temp + "°C " + w.Weather[0].Description + " ветер " + windSpeed + " м/с ошущается как " + feelsLike + "°C"
+	return prognoz
+}
+
 type weather struct {
 	Coord struct {
 		Lon float64 `json:"lon"`
