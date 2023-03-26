@@ -1,4 +1,3 @@
-/token/token.txt
 *.iml
 *.ipr
 *.iws
@@ -56,3 +55,6 @@ _testmain.go
 # For files created by specific development environment (e.g. editor),
 # use alternative ways to exclude files from git.
 # For example, set up .git/info/exclude or use a global .gitignore.
+/test.go
+/commandModule/testHello.go
+/token/
