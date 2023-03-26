@@ -1,7 +1,10 @@
 package main
 
 import (
+	"encoding/json"
+	"fmt"
 	"log"
+	"math/rand"
 	"panionbot/commandModule"
 	"panionbot/helpFunc"
 	"panionbot/keyboard"
@@ -10,7 +13,15 @@ import (
 	tgbotapi "github.com/go-telegram-bot-api/telegram-bot-api/v5"
 )
 
+var joke []string
+
 func main() {
+
+	anek := helpFunc.GetTokenFromFile("./token/joke.json")
+	_ = json.Unmarshal([]byte(anek), &joke)
+	lenArr := len(joke)
+	fmt.Println()
+
 	botToken := helpFunc.GetTokenFromFile("./token/botToken.txt")
 	bot, err := tgbotapi.NewBotAPI(botToken)
 	if err != nil {
@@ -58,7 +69,7 @@ func main() {
 				case "start":
 					msg.Text = "Я пока ещё жив"
 				case "anek":
-					msg.Text = commandModule.GetAnek()
+					msg.Text = joke[rand.Intn(lenArr)]
 				case "horoscope":
 					msg.ReplyMarkup = keyboard.Horoscope
 				}
