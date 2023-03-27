@@ -10,7 +10,7 @@ import (
 )
 
 func GetWeatherByName(cityName string) string {
-	API_WEATHER_KEY := helpFunc.GetTokenFromFile("./token/weatherTokenAPI.txt")
+	API_WEATHER_KEY := helpFunc.GetTextFromFile("./token/weatherTokenAPI.txt")
 	url := "https://api.openweathermap.org/data/2.5/weather?q=" + cityName + "&lang=ru&units=metric&appid=" + API_WEATHER_KEY
 	res, err := http.Get(url)
 	if err != nil {
@@ -48,7 +48,7 @@ func GetWeatherByName(cityName string) string {
 func GetWeatherByLocation(lat float64, lon float64) string {
 	latString := fmt.Sprintf("%f", lat)
 	lonString := fmt.Sprintf("%f", lon)
-	API_WEATHER_KEY := helpFunc.GetTokenFromFile("./token/weatherTokenAPI.txt")
+	API_WEATHER_KEY := helpFunc.GetTextFromFile("./token/weatherTokenAPI.txt")
 	url := "https://api.openweathermap.org/data/2.5/weather?lat=" + latString + "&lon=" + lonString + "&lang=ru&units=metric&appid=" + API_WEATHER_KEY
 	res, err := http.Get(url)
 	if err != nil {
