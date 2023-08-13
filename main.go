@@ -134,12 +134,14 @@ func handleMessage(bot *tgbotapi.BotAPI, db *gorm.DB, message *tgbotapi.Message,
 				// Checking if the user is already registered
 				if db.First(&models.Users{}, "user_id = ?", userID).RowsAffected > 0 {
 					msg.Text = "Вы уже участвуете"
+					break
 				}
 
 				// Registering the user and group
 				db.FirstOrCreate(&user)
 				db.FirstOrCreate(&models.Groups{GroupID: chatID, GroupName: groupName})
 				db.FirstOrCreate(&userGroup, &models.UsersGroups{UserID: userID, GroupID: chatID})
+				msg.Text = "Вы успешно зарегистрировались в этой замечательной онлайн-игре \"Зайки-Томатики\""
 			} else {
 				msg.Text = "Данная команда работает только в группах"
 			}
