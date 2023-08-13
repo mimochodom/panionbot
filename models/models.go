@@ -26,7 +26,7 @@ type Groups struct {
 type UsersGroups struct {
 	UserID      int64
 	GroupID     int64
-	JoinedAt    time.Time
+	Leaving     bool
 	BunnyCount  int
 	TomatoCount int
 	User        Users  `gorm:"foreignKey:UserID"`

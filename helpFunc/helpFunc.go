@@ -29,7 +29,7 @@ func DecoderToWin1251(title string) string {
 }
 
 func SetupDatabase() (*gorm.DB, error) {
-	dsn := GetTextFromFile("./token/dbConfig.txt")
+	dsn := GetTextFromFile("./token/dbConfigTest.txt")
 	return gorm.Open(postgres.Open(dsn), &gorm.Config{})
 }
 

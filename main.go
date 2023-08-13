@@ -2,6 +2,7 @@ package main
 
 import (
 	"encoding/json"
+	"fmt"
 	tgbotapi "github.com/go-telegram-bot-api/telegram-bot-api/v5"
 	"gorm.io/gorm"
 	"log"
@@ -16,7 +17,7 @@ import (
 )
 
 var joke []string
-var workerPool = make(chan struct{}, 50000)
+var workerPool = make(chan struct{}, 250000)
 
 func main() {
 	luceneHost := helpFunc.GetTextFromFile("./token/lucene.txt")
@@ -55,6 +56,7 @@ func processUpdate(bot *tgbotapi.BotAPI, db *gorm.DB, update tgbotapi.Update, lu
 		handleMessage(bot, db, update.Message, joke, lenArr)
 	case update.CallbackQuery != nil:
 		handleCallbackQuery(bot, update.CallbackQuery)
+
 	}
 }
 
@@ -96,8 +98,14 @@ func handleMessage(bot *tgbotapi.BotAPI, db *gorm.DB, message *tgbotapi.Message,
 	user.UserName = userName
 	group.GroupName = groupName
 	group.GroupID = chatID
-
+	fmt.Println(message.Text)
 	msg := tgbotapi.NewMessage(message.Chat.ID, message.Text)
+
+	if db.First(&user, "user_id = ?", userID).RowsAffected > 0 {
+		if user.UserName != userName {
+			db.Model(&user).Update("user_name", userName)
+		}
+	}
 
 	if message.IsCommand() {
 		switch message.Command() {
@@ -124,7 +132,7 @@ func handleMessage(bot *tgbotapi.BotAPI, db *gorm.DB, message *tgbotapi.Message,
 				//timeStart := time.Date(1970, 1, 1, 0, 0, 0, 0, time.UTC)
 
 				// Checking if the user is already registered
-				if db.Find(&models.Users{}, "user_id = ?", userID).RowsAffected > 0 {
+				if db.First(&models.Users{}, "user_id = ?", userID).RowsAffected > 0 {
 					msg.Text = "Вы уже участвуете"
 				}
 
@@ -244,11 +252,15 @@ func handleMessage(bot *tgbotapi.BotAPI, db *gorm.DB, message *tgbotapi.Message,
 				msg.Text = "Данная команда работает только в группах"
 			}
 		case "bot_time":
+			msg.Text = time.Now().String()
+		default:
+			msg.Text = "Нет такой команды"
 		}
 
 		if _, err := bot.Send(msg); err != nil {
 			log.Panic(err)
 		}
+
 	}
 	if message.Text == "По названию" {
 		msg.Text = "Напишите город в котором хотите узнать погоду"
