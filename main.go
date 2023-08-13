@@ -160,14 +160,16 @@ func handleMessage(bot *tgbotapi.BotAPI, db *gorm.DB, message *tgbotapi.Message,
 
 				today := time.Now().Truncate(24 * time.Hour)
 
-				db.Table("groups").Select("group_id, bunny_name, tomato_name, last_game_played").First(&group)
+				db.Table("groups").Select("group_id, last_game_played").First(&group)
 
 				if group.LastGamePlayed.Before(today) {
 					sleep := 500 * time.Millisecond
 					bunny, bunny_id := models.SelectRandomBunnyTomatoPerson(users)
 					tomato, tomato_id := models.SelectRandomBunnyTomatoPerson(users)
 					timeNow := time.Now()
-					db.Save(&models.Groups{GroupID: chatID, GroupName: groupName, LastGamePlayed: timeNow, BunnyName: bunny, TomatoName: tomato})
+
+					db.Save(&models.Groups{GroupID: chatID, GroupName: groupName, LastGamePlayed: timeNow})
+					db.Create(&models.GroupsBTGameResult{GamePlayed: timeNow, GroupID: chatID, UserIDBunny: bunny_id, UserIDTomato: tomato_id})
 
 					db.Model(&models.UsersGroups{}).Where("user_id = ? AND group_id = ?", bunny_id, chatID).UpdateColumn("bunny_count", gorm.Expr("bunny_count+?", 1))
 					db.Model(&models.UsersGroups{}).Where("user_id = ? AND group_id = ?", tomato_id, chatID).UpdateColumn("tomato_count", gorm.Expr("tomato_count+?", 1))
@@ -190,8 +192,6 @@ func handleMessage(bot *tgbotapi.BotAPI, db *gorm.DB, message *tgbotapi.Message,
 
 					}
 
-					db.Create(&models.GroupsBTGameResult{GamePlayed: timeNow, GroupID: chatID, UserIDBunny: bunny_id, UserIDTomato: tomato_id})
-
 					for i := range users {
 						if users[i].UserName == bunny {
 							users[i].BunnyCountGlobal++
@@ -205,11 +205,17 @@ func handleMessage(bot *tgbotapi.BotAPI, db *gorm.DB, message *tgbotapi.Message,
 					db.Save(&users)
 
 				} else {
+					lastGameResult := models.GroupsBTGameResult{}
+					userBunny := models.Users{}
+					userTomato := models.Users{}
+					db.Table("groups_bt_game_results").Select("user_id_bunny, user_id_tomato").Where("group_id = ?", chatID).First(&lastGameResult)
+					db.Table("users").Select("user_name").Where("user_id = ?", lastGameResult.UserIDBunny).First(&userBunny)
+					db.Table("users").Select("user_name").Where("user_id = ?", lastGameResult.UserIDTomato).First(&userTomato)
 
-					if group.BunnyName == group.TomatoName {
-						msg.Text = "Уже определили \n" + "Счастливчик, выбил две позиции 🐰🍅: " + group.BunnyName
+					if lastGameResult.UserIDBunny == lastGameResult.UserIDTomato {
+						msg.Text = "Уже определили \n" + "Счастливчик, выбил две позиции 🐰🍅: " + userBunny.UserName
 					} else {
-						msg.Text = "Уже определили \n" + "🐰 дня: " + group.BunnyName + " \n" + "🍅 дня: " + group.TomatoName
+						msg.Text = "Уже определили \n" + "🐰 дня: " + userBunny.UserName + " \n" + "🍅 дня: " + userTomato.UserName
 					}
 				}
 			} else {

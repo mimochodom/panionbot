@@ -18,8 +18,6 @@ type Groups struct {
 	GroupID        int64  `gorm:"primaryKey"`
 	GroupName      string `gorm:"size:255"`
 	LastGamePlayed time.Time
-	BunnyName      string
-	TomatoName     string
 
 	Users []Users `gorm:"many2many:users_groups;"`
 }
