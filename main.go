@@ -166,7 +166,8 @@ func handleMessage(bot *tgbotapi.BotAPI, db *gorm.DB, message *tgbotapi.Message,
 					sleep := 500 * time.Millisecond
 					bunny, bunny_id := models.SelectRandomBunnyTomatoPerson(users)
 					tomato, tomato_id := models.SelectRandomBunnyTomatoPerson(users)
-					db.Save(&models.Groups{GroupID: chatID, GroupName: groupName, LastGamePlayed: time.Now(), BunnyName: bunny, TomatoName: tomato})
+					timeNow := time.Now()
+					db.Save(&models.Groups{GroupID: chatID, GroupName: groupName, LastGamePlayed: timeNow, BunnyName: bunny, TomatoName: tomato})
 
 					db.Model(&models.UsersGroups{}).Where("user_id = ? AND group_id = ?", bunny_id, chatID).UpdateColumn("bunny_count", gorm.Expr("bunny_count+?", 1))
 					db.Model(&models.UsersGroups{}).Where("user_id = ? AND group_id = ?", tomato_id, chatID).UpdateColumn("tomato_count", gorm.Expr("tomato_count+?", 1))
@@ -188,6 +189,8 @@ func handleMessage(bot *tgbotapi.BotAPI, db *gorm.DB, message *tgbotapi.Message,
 						msg.Text = "🐰 дня: " + bunny + " \n" + "🍅 дня: " + tomato
 
 					}
+
+					db.Create(&models.GroupsBTGameResult{GamePlayed: timeNow, GroupID: chatID, UserIDBunny: bunny_id, UserIDTomato: tomato_id})
 
 					for i := range users {
 						if users[i].UserName == bunny {

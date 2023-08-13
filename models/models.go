@@ -38,3 +38,14 @@ func SelectRandomBunnyTomatoPerson(users []Users) (string, int64) {
 	randomIndex := rand.Intn(len(users))
 	return users[randomIndex].UserName, users[randomIndex].UserID
 }
+
+type GroupsBTGameResult struct {
+	id           int64 `gorm:"primaryKey"`
+	GroupID      int64
+	GamePlayed   time.Time
+	UserIDBunny  int64
+	UserIDTomato int64
+	User         Users  `gorm:"foreignKey:UserIDBunny"`
+	User_        Users  `gorm:"foreignKey:UserIDTomato"`
+	Group        Groups `gorm:"foreignKey:GroupID"`
+}
