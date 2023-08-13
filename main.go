@@ -24,7 +24,7 @@ func main() {
 	db, err := helpFunc.SetupDatabase()
 	_ = json.Unmarshal([]byte(anek), &joke)
 	lenArr := len(joke)
-	botToken := helpFunc.GetTextFromFile("./token/botTokenTest.txt")
+	botToken := helpFunc.GetTextFromFile("./token/botToken.txt")
 	bot, err := tgbotapi.NewBotAPI(botToken)
 	if err != nil {
 		log.Panic(err)
@@ -48,65 +48,78 @@ func main() {
 }
 
 func processUpdate(bot *tgbotapi.BotAPI, db *gorm.DB, update tgbotapi.Update, luceneHost string, joke []string, lenArr int) {
+	switch {
+	case update.InlineQuery != nil:
+		handleInlineQuery(bot, update.InlineQuery, luceneHost)
+	case update.Message != nil:
+		handleMessage(bot, db, update.Message, joke, lenArr)
+	case update.CallbackQuery != nil:
+		handleCallbackQuery(bot, update.CallbackQuery)
+	}
+}
+
+func handleInlineQuery(bot *tgbotapi.BotAPI, inlineQuery *tgbotapi.InlineQuery, luceneHost string) {
+
+	anekdoty := commandModule.FindAnek(inlineQuery.Query, luceneHost)
+
+	var articles []interface{}
+	for _, anek := range anekdoty {
+		article := tgbotapi.NewInlineQueryResultArticle(string(rune(rand.Intn(100000))), " ", anek)
+		article.Description = anek
+
+		articles = append(articles, article)
+	}
+	inlineConf := tgbotapi.InlineConfig{
+		InlineQueryID: inlineQuery.ID,
+		IsPersonal:    true,
+		CacheTime:     0,
+		Results:       articles,
+	}
+	if _, err := bot.Request(inlineConf); err != nil {
+		log.Println(err)
+	}
+
+}
+
+func handleMessage(bot *tgbotapi.BotAPI, db *gorm.DB, message *tgbotapi.Message, joke []string, lenArr int) {
+	// Extracting relevant information from the update
 	user := models.Users{}
 	group := models.Groups{}
 	userGroup := models.UsersGroups{}
 
-	if update.InlineQuery != nil {
-		anekdoty := commandModule.FindAnek(update.InlineQuery.Query, luceneHost)
+	userID := message.From.ID
+	userName := message.From.UserName
+	groupName := message.Chat.Title
 
-		var articles []interface{}
-		for _, anek := range anekdoty {
-			article := tgbotapi.NewInlineQueryResultArticle(string(rune(rand.Intn(100000))), " ", anek)
-			article.Description = anek
+	chatID := message.Chat.ID
+	user.UserID = userID
+	user.UserName = userName
+	group.GroupName = groupName
+	group.GroupID = chatID
 
-			articles = append(articles, article)
-		}
-		inlineConf := tgbotapi.InlineConfig{
-			InlineQueryID: update.InlineQuery.ID,
-			IsPersonal:    true,
-			CacheTime:     0,
-			Results:       articles,
-		}
-		if _, err := bot.Request(inlineConf); err != nil {
-			log.Println(err)
-		}
-	}
+	msg := tgbotapi.NewMessage(message.Chat.ID, message.Text)
 
-	if update.Message != nil {
-		msg := tgbotapi.NewMessage(update.Message.Chat.ID, update.Message.Text)
+	if message.IsCommand() {
+		switch message.Command() {
+		case "start":
+			msg.Text = "Я пока ещё жив"
+		case "anek":
+			msg.Text = joke[rand.Intn(lenArr)-1]
+		case "horoscope":
+			msg.ReplyMarkup = keyboard.Horoscope
 
-		// Extracting relevant information from the update
-		userID := update.Message.From.ID
-		userName := update.Message.From.UserName
-		groupName := update.Message.Chat.Title
-		chatID := update.Message.Chat.ID
-		user.UserID = userID
-		user.UserName = userName
-		group.GroupName = groupName
-		group.GroupID = chatID
+		case "weather_report":
 
-		if update.Message.IsCommand() {
+			if message.Chat.Type == "private" {
+				msg.ReplyMarkup = keyboard.Weather
+				msg.Text = "Взгляните на клавиатуру"
 
-			switch update.Message.Command() {
-			case "start":
-				msg.Text = "Я пока ещё жив"
-			case "anek":
-				msg.Text = joke[rand.Intn(lenArr)-1]
-			case "horoscope":
-				msg.ReplyMarkup = keyboard.Horoscope
+			} else {
+				msg.Text = "Данная команда не работает в группах"
+			}
 
-			case "weather_report":
-
-				if update.Message.Chat.Type == "private" {
-					msg.ReplyMarkup = keyboard.Weather
-					msg.Text = "Взгляните на клавиатуру"
-
-				} else {
-					msg.Text = "Данная команда не работает в группах"
-				}
-
-			case "reg":
+		case "reg":
+			if helpFunc.IsGroupChat(message.Chat.Type) {
 				//The time when it all started
 				//timeStart := time.Date(1970, 1, 1, 0, 0, 0, 0, time.UTC)
 
@@ -119,8 +132,12 @@ func processUpdate(bot *tgbotapi.BotAPI, db *gorm.DB, update tgbotapi.Update, lu
 				db.FirstOrCreate(&user)
 				db.FirstOrCreate(&models.Groups{GroupID: chatID, GroupName: groupName})
 				db.FirstOrCreate(&userGroup, &models.UsersGroups{UserID: userID, GroupID: chatID})
+			} else {
+				msg.Text = "Данная команда работает только в группах"
+			}
 
-			case "bunny_tomato":
+		case "bunny_tomato":
+			if helpFunc.IsGroupChat(message.Chat.Type) {
 				// Selecting random users for the game
 				md := tgbotapi.NewDiceWithEmoji(chatID, "🏀")
 
@@ -182,8 +199,12 @@ func processUpdate(bot *tgbotapi.BotAPI, db *gorm.DB, update tgbotapi.Update, lu
 						msg.Text = "Уже определили \n" + "🐰 дня: " + group.BunnyName + " \n" + "🍅 дня: " + group.TomatoName
 					}
 				}
-			case "group_stat":
+			} else {
+				msg.Text = "Данная команда работает только в группах"
+			}
+		case "group_stat":
 
+			if helpFunc.IsGroupChat(message.Chat.Type) {
 				// Getting the statistics for all users in the group
 				var users []models.UsersGroups
 				var usersR models.Users
@@ -203,8 +224,11 @@ func processUpdate(bot *tgbotapi.BotAPI, db *gorm.DB, update tgbotapi.Update, lu
 				}
 				sentence := strings.Join(output, "")
 				msg.Text = "Топ 5: \n" + sentence + "Из суммарно: " + strconv.Itoa(len(users)) + " человек(а)"
-			case "my_stat":
-
+			} else {
+				msg.Text = "Данная команда работает только в группах"
+			}
+		case "my_stat":
+			if helpFunc.IsGroupChat(message.Chat.Type) {
 				db.Table("users").Select("user_name, bunny_count_global, tomato_count_global").First(&user, userID)
 				db.Table("users_groups").Select("bunny_count, tomato_count").First(&userGroup, userID, chatID)
 
@@ -215,48 +239,53 @@ func processUpdate(bot *tgbotapi.BotAPI, db *gorm.DB, update tgbotapi.Update, lu
 					"А в общей статистике\n" +
 					"- Ты был \"🐰\" " + strconv.Itoa(user.BunnyCountGlobal) + " раз(а)\n" +
 					"- и \"🍅\" " + strconv.Itoa(user.TomatoCountGlobal) + " раз(а)."
-				if _, err := bot.Send(msg); err != nil {
-					log.Panic(err)
-				}
+
+			} else {
+				msg.Text = "Данная команда работает только в группах"
 			}
+		case "bot_time":
 		}
 
-		if update.Message.Text == "По названию" {
-			msg.Text = "Напишите город в котором хотите узнать погоду"
-			msg.ReplyMarkup = tgbotapi.ForceReply{ForceReply: true}
-			if _, err := bot.Send(msg); err != nil {
-				log.Panic(err)
-			}
+		if _, err := bot.Send(msg); err != nil {
+			log.Panic(err)
 		}
-
-		if update.Message.ReplyToMessage != nil && update.Message.Chat.Type == "private" {
-			msg.Text = commandModule.GetWeatherByName(update.Message.Text)
-
-			if update.Message.Location != nil {
-				msg.Text = commandModule.GetWeatherByLocation(update.Message.Location.Latitude, update.Message.Location.Longitude)
-			}
-			if _, err := bot.Send(msg); err != nil {
-				log.Panic(err)
-			}
+	}
+	if message.Text == "По названию" {
+		msg.Text = "Напишите город в котором хотите узнать погоду"
+		msg.ReplyMarkup = tgbotapi.ForceReply{ForceReply: true}
+		if _, err := bot.Send(msg); err != nil {
+			log.Panic(err)
 		}
+	}
 
-	} else if update.CallbackQuery != nil {
-		callback := tgbotapi.NewCallback(update.CallbackQuery.ID, update.CallbackQuery.Data)
+	if message.ReplyToMessage != nil && message.Chat.Type == "private" {
+		msg.Text = commandModule.GetWeatherByName(message.Text)
 
-		if _, err := bot.Request(callback); err != nil {
-			panic(err)
+		if message.Location != nil {
+			msg.Text = commandModule.GetWeatherByLocation(message.Location.Latitude, message.Location.Longitude)
 		}
+		if _, err := bot.Send(msg); err != nil {
+			log.Panic(err)
+		}
+	}
+}
 
-		horoscopeText := strings.ToUpper(update.CallbackQuery.Data) + ": " + commandModule.GetHoroscope(update.CallbackQuery.Data)
-		msg := tgbotapi.NewMessage(update.CallbackQuery.Message.Chat.ID, horoscopeText)
-		_, err := bot.Send(msg)
-		if err != nil {
-			return
-		}
-		del := tgbotapi.NewDeleteMessage(update.CallbackQuery.Message.Chat.ID, update.CallbackQuery.Message.MessageID)
-		_, err = bot.Send(del)
-		if err != nil {
-			return
-		}
+func handleCallbackQuery(bot *tgbotapi.BotAPI, callbackQuery *tgbotapi.CallbackQuery) {
+	callback := tgbotapi.NewCallback(callbackQuery.ID, callbackQuery.Data)
+
+	if _, err := bot.Request(callback); err != nil {
+		panic(err)
+	}
+
+	horoscopeText := strings.ToUpper(callbackQuery.Data) + ": " + commandModule.GetHoroscope(callbackQuery.Data)
+	msg := tgbotapi.NewMessage(callbackQuery.Message.Chat.ID, horoscopeText)
+	_, err := bot.Send(msg)
+	if err != nil {
+		return
+	}
+	del := tgbotapi.NewDeleteMessage(callbackQuery.Message.Chat.ID, callbackQuery.Message.MessageID)
+	_, err = bot.Send(del)
+	if err != nil {
+		return
 	}
 }
