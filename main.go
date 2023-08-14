@@ -256,7 +256,8 @@ func handleMessage(bot *tgbotapi.BotAPI, db *gorm.DB, message *tgbotapi.Message,
 		case "bot_time":
 			msg.Text = time.Now().String()
 		default:
-			msg.Text = "Нет такой команды"
+			imgPath := "./token/What.png"
+			helpFunc.SendImage(bot, chatID, " ", imgPath)
 		}
 
 		if _, err := bot.Send(msg); err != nil {
