@@ -41,3 +41,5 @@ type GroupsBTGameResult struct {
 	User_        Users  `gorm:"foreignKey:UserIDTomato"`
 	Group        Groups `gorm:"foreignKey:GroupID"`
 }
+
+var SmileyList = []string{"🎲", "🎯", "🏀", "⚽", "🎳", "🎰"}

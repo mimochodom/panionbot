@@ -149,8 +149,11 @@ func handleMessage(bot *tgbotapi.BotAPI, db *gorm.DB, message *tgbotapi.Message,
 
 		case "bunny_tomato":
 			if helpFunc.IsGroupChat(message.Chat.Type) {
+
+				randomEmoji := helpFunc.SelectRandomItem(models.SmileyList)
 				// Selecting random users for the game
-				md := tgbotapi.NewDiceWithEmoji(chatID, "🏀")
+
+				md := tgbotapi.NewDiceWithEmoji(chatID, randomEmoji)
 
 				var users []models.Users
 
@@ -165,23 +168,23 @@ func handleMessage(bot *tgbotapi.BotAPI, db *gorm.DB, message *tgbotapi.Message,
 
 				if group.LastGamePlayed.Before(today) {
 					sleep := 500 * time.Millisecond
-					bunny, bunny_id := helpFunc.SelectRandomBunnyTomatoPerson(users)
-					tomato, tomato_id := helpFunc.SelectRandomBunnyTomatoPerson(users)
+					bunny := helpFunc.SelectRandomItem(users)
+					tomato := helpFunc.SelectRandomItem(users)
 					timeNow := time.Now()
 
 					db.Save(&models.Groups{GroupID: chatID, GroupName: groupName, LastGamePlayed: timeNow})
-					db.Create(&models.GroupsBTGameResult{GamePlayed: timeNow, GroupID: chatID, UserIDBunny: bunny_id, UserIDTomato: tomato_id})
+					db.Create(&models.GroupsBTGameResult{GamePlayed: timeNow, GroupID: chatID, UserIDBunny: bunny.UserID, UserIDTomato: tomato.UserID})
 
-					db.Model(&models.UsersGroups{}).Where("user_id = ? AND group_id = ?", bunny_id, chatID).UpdateColumn("bunny_count", gorm.Expr("bunny_count+?", 1))
-					db.Model(&models.UsersGroups{}).Where("user_id = ? AND group_id = ?", tomato_id, chatID).UpdateColumn("tomato_count", gorm.Expr("tomato_count+?", 1))
+					db.Model(&models.UsersGroups{}).Where("user_id = ? AND group_id = ?", bunny.UserID, chatID).UpdateColumn("bunny_count", gorm.Expr("bunny_count+?", 1))
+					db.Model(&models.UsersGroups{}).Where("user_id = ? AND group_id = ?", tomato.UserID, chatID).UpdateColumn("tomato_count", gorm.Expr("tomato_count+?", 1))
 
-					if bunny == tomato {
+					if bunny.UserName == tomato.UserName {
 						bot.Send(md)
 						time.Sleep(sleep * 10)
 						msg.Text = "ПУ-ПУ-ПУ"
 						bot.Send(msg)
 						time.Sleep(sleep)
-						msg.Text = "Повезло тебе, ты сегодня никакой: " + bunny
+						msg.Text = "Повезло тебе, ты сегодня никакой: " + bunny.UserName
 
 					} else {
 						bot.Send(md)
@@ -189,16 +192,16 @@ func handleMessage(bot *tgbotapi.BotAPI, db *gorm.DB, message *tgbotapi.Message,
 						msg.Text = "ПУ-ПУ-ПУ"
 						bot.Send(msg)
 						time.Sleep(sleep)
-						msg.Text = "🐰 дня: " + bunny + " \n" + "🍅 дня: " + tomato
+						msg.Text = "🐰 дня: " + bunny.UserName + " \n" + "🍅 дня: " + tomato.UserName
 
 					}
 
 					for i := range users {
-						if users[i].UserName == bunny {
+						if users[i].UserName == bunny.UserName {
 							users[i].BunnyCountGlobal++
 
 						}
-						if users[i].UserName == tomato {
+						if users[i].UserName == tomato.UserName {
 							users[i].TomatoCountGlobal++
 						}
 					}

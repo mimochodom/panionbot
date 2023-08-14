@@ -8,7 +8,6 @@ import (
 	"log"
 	"math/rand"
 	"os"
-	"panionbot/models"
 	"time"
 )
 
@@ -33,7 +32,7 @@ func DecoderToWin1251(title string) string {
 }
 
 func SetupDatabase() (*gorm.DB, error) {
-	dsn := GetTextFromFile("./token/dbConfigTest.txt")
+	dsn := GetTextFromFile("./token/dbConfig.txt")
 	return gorm.Open(postgres.Open(dsn), &gorm.Config{})
 }
 
@@ -49,8 +48,14 @@ func SendImage(bot *tgbotapi.BotAPI, chatID int64, imagePath string) {
 	}
 }
 
-func SelectRandomBunnyTomatoPerson(users []models.Users) (string, int64) {
+func SelectRandomItem[T any](items []T) T {
 	rand.New(rand.NewSource(time.Now().UnixNano()))
-	randomIndex := rand.Intn(len(users))
-	return users[randomIndex].UserName, users[randomIndex].UserID
+	randomIndex := rand.Intn(len(items))
+	return items[randomIndex]
 }
+
+//func SelectRandomBunnyTomatoPerson(users []models.Users) (string, int64) {
+//	rand.New(rand.NewSource(time.Now().UnixNano()))
+//	randomIndex := rand.Intn(len(users))
+//	return users[randomIndex].UserName, users[randomIndex].UserID
+//}
