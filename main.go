@@ -26,7 +26,7 @@ func main() {
 	db, err := helpFunc.SetupDatabase()
 	_ = json.Unmarshal([]byte(anek), &joke)
 	lenArr := len(joke)
-	botToken := helpFunc.GetTextFromFile("./token/botTokenTest.txt")
+	botToken := helpFunc.GetTextFromFile("./token/botToken.txt")
 	bot, err := tgbotapi.NewBotAPI(botToken)
 	if err != nil {
 		log.Panic(err)
@@ -133,7 +133,7 @@ func handleMessage(bot *tgbotapi.BotAPI, db *gorm.DB, message *tgbotapi.Message,
 				//timeStart := time.Date(1970, 1, 1, 0, 0, 0, 0, time.UTC)
 
 				// Checking if the user is already registered
-				if db.First(&models.Users{}, "user_id = ?", userID).RowsAffected > 0 {
+				if db.First(&models.UsersGroups{}, "user_id = ? and group_id = ?", userID, chatID).RowsAffected > 0 {
 					msg.Text = "Вы уже участвуете"
 					break
 				}
