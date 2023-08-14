@@ -1,7 +1,6 @@
 package models
 
 import (
-	"math/rand"
 	"time"
 )
 
@@ -21,6 +20,7 @@ type Groups struct {
 
 	Users []Users `gorm:"many2many:users_groups;"`
 }
+
 type UsersGroups struct {
 	UserID      int64
 	GroupID     int64
@@ -29,12 +29,6 @@ type UsersGroups struct {
 	TomatoCount int
 	User        Users  `gorm:"foreignKey:UserID"`
 	Group       Groups `gorm:"foreignKey:GroupID"`
-}
-
-func SelectRandomBunnyTomatoPerson(users []Users) (string, int64) {
-	rand.New(rand.NewSource(time.Now().UnixNano()))
-	randomIndex := rand.Intn(len(users))
-	return users[randomIndex].UserName, users[randomIndex].UserID
 }
 
 type GroupsBTGameResult struct {

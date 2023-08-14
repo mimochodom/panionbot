@@ -164,8 +164,8 @@ func handleMessage(bot *tgbotapi.BotAPI, db *gorm.DB, message *tgbotapi.Message,
 
 				if group.LastGamePlayed.Before(today) {
 					sleep := 500 * time.Millisecond
-					bunny, bunny_id := models.SelectRandomBunnyTomatoPerson(users)
-					tomato, tomato_id := models.SelectRandomBunnyTomatoPerson(users)
+					bunny, bunny_id := helpFunc.SelectRandomBunnyTomatoPerson(users)
+					tomato, tomato_id := helpFunc.SelectRandomBunnyTomatoPerson(users)
 					timeNow := time.Now()
 
 					db.Save(&models.Groups{GroupID: chatID, GroupName: groupName, LastGamePlayed: timeNow})

@@ -6,7 +6,10 @@ import (
 	"gorm.io/driver/postgres"
 	"gorm.io/gorm"
 	"log"
+	"math/rand"
 	"os"
+	"panionbot/models"
+	"time"
 )
 
 func GetTextFromFile(pathFile string) string {
@@ -45,4 +48,10 @@ func SendImage(bot *tgbotapi.BotAPI, chatID int64, text string, imagePath string
 	if _, err := bot.Send(image); err != nil {
 		log.Panic(err)
 	}
+}
+
+func SelectRandomBunnyTomatoPerson(users []models.Users) (string, int64) {
+	rand.New(rand.NewSource(time.Now().UnixNano()))
+	randomIndex := rand.Intn(len(users))
+	return users[randomIndex].UserName, users[randomIndex].UserID
 }
