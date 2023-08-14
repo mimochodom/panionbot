@@ -20,6 +20,7 @@ var joke []string
 var workerPool = make(chan struct{}, 250000)
 
 func main() {
+
 	luceneHost := helpFunc.GetTextFromFile("./token/lucene.txt")
 	anek := helpFunc.GetTextFromFile("./token/joke.json")
 	db, err := helpFunc.SetupDatabase()
@@ -270,13 +271,21 @@ func handleMessage(bot *tgbotapi.BotAPI, db *gorm.DB, message *tgbotapi.Message,
 			msg.Text = time.Now().String()
 		default:
 			imgPath := "./token/What.png"
-			helpFunc.SendImage(bot, chatID, " ", imgPath)
+			helpFunc.SendImage(bot, chatID, imgPath)
+			msg.Text = ""
+
 		}
 
 		if _, err := bot.Send(msg); err != nil {
 			log.Panic(err)
 		}
 
+		defer func() {
+			if r := recover(); r != nil {
+				log.Println("Recovered from panic:", r)
+				// Выполните здесь необходимые действия после паники
+			}
+		}()
 	}
 	if message.Text == "По названию" {
 		msg.Text = "Напишите город в котором хотите узнать погоду"

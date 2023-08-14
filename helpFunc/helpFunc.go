@@ -41,10 +41,9 @@ func IsGroupChat(chatType string) bool {
 	return chatType == "group" || chatType == "supergroup"
 }
 
-func SendImage(bot *tgbotapi.BotAPI, chatID int64, text string, imagePath string) {
-	msg := tgbotapi.NewMessage(chatID, text)
+func SendImage(bot *tgbotapi.BotAPI, chatID int64, imagePath string) {
+
 	image := tgbotapi.NewPhoto(chatID, tgbotapi.FilePath(imagePath))
-	bot.Send(msg)
 	if _, err := bot.Send(image); err != nil {
 		log.Panic(err)
 	}
