@@ -25,7 +25,7 @@ func main() {
 	db, err := helpFunc.SetupDatabase()
 	_ = json.Unmarshal([]byte(anek), &joke)
 	lenArr := len(joke)
-	botToken := helpFunc.GetTextFromFile("./token/botToken.txt")
+	botToken := helpFunc.GetTextFromFile("./token/botTokenTest.txt")
 	bot, err := tgbotapi.NewBotAPI(botToken)
 	if err != nil {
 		log.Panic(err)
@@ -208,7 +208,7 @@ func handleMessage(bot *tgbotapi.BotAPI, db *gorm.DB, message *tgbotapi.Message,
 					lastGameResult := models.GroupsBTGameResult{}
 					userBunny := models.Users{}
 					userTomato := models.Users{}
-					db.Table("groups_bt_game_results").Select("user_id_bunny, user_id_tomato").Where("group_id = ?", chatID).First(&lastGameResult)
+					db.Table("groups_bt_game_results").Select("user_id_bunny, user_id_tomato").Where("group_id = ?", chatID).Order("id desc").First(&lastGameResult)
 					db.Table("users").Select("user_name").Where("user_id = ?", lastGameResult.UserIDBunny).First(&userBunny)
 					db.Table("users").Select("user_name").Where("user_id = ?", lastGameResult.UserIDTomato).First(&userTomato)
 
@@ -248,16 +248,20 @@ func handleMessage(bot *tgbotapi.BotAPI, db *gorm.DB, message *tgbotapi.Message,
 			}
 		case "my_stat":
 			if helpFunc.IsGroupChat(message.Chat.Type) {
-				db.Table("users").Select("user_name, bunny_count_global, tomato_count_global").First(&user, userID)
-				db.Table("users_groups").Select("bunny_count, tomato_count").First(&userGroup, userID, chatID)
+				if db.Table("users").Select("user_name, bunny_count_global, tomato_count_global").First(&user, userID).RowsAffected > 0 {
+					db.Table("users_groups").Select("bunny_count, tomato_count").First(&userGroup, userID, chatID)
 
-				msg.Text = "Вот такая у тебя статистика " + user.UserName + " :\n" +
-					"В этой группе\n" +
-					"- Ты был \"🐰\" " + strconv.Itoa(userGroup.BunnyCount) + " раз(а)\n" +
-					"- и \"🍅\" " + strconv.Itoa(userGroup.TomatoCount) + " раз(а).\n" +
-					"А в общей статистике\n" +
-					"- Ты был \"🐰\" " + strconv.Itoa(user.BunnyCountGlobal) + " раз(а)\n" +
-					"- и \"🍅\" " + strconv.Itoa(user.TomatoCountGlobal) + " раз(а)."
+					msg.Text = "Вот такая у тебя статистика " + user.UserName + " :\n" +
+						"В этой группе\n" +
+						"- Ты был \"🐰\" " + strconv.Itoa(userGroup.BunnyCount) + " раз(а)\n" +
+						"- и \"🍅\" " + strconv.Itoa(userGroup.TomatoCount) + " раз(а).\n" +
+						"А в общей статистике\n" +
+						"- Ты был \"🐰\" " + strconv.Itoa(user.BunnyCountGlobal) + " раз(а)\n" +
+						"- и \"🍅\" " + strconv.Itoa(user.TomatoCountGlobal) + " раз(а)."
+
+				} else {
+					msg.Text = "Вы не зарегистрировались"
+				}
 
 			} else {
 				msg.Text = "Данная команда работает только в группах"
