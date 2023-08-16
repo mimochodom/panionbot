@@ -1,6 +1,7 @@
 package main
 
 import (
+	"context"
 	"encoding/json"
 	"fmt"
 	tgbotapi "github.com/go-telegram-bot-api/telegram-bot-api/v5"
@@ -13,20 +14,26 @@ import (
 	"panionbot/models"
 	"strconv"
 	"strings"
+	"sync"
 	"time"
 )
 
 var joke []string
-var workerPool = make(chan struct{}, 250000)
+
+// var workerPool = make(chan struct{}, 250000)
+const maxConcurrency = 24
 
 func main() {
 
 	luceneHost := helpFunc.GetTextFromFile("./token/lucene.txt")
 	anek := helpFunc.GetTextFromFile("./token/joke.json")
 	db, err := helpFunc.SetupDatabase()
-	_ = json.Unmarshal([]byte(anek), &joke)
+	err = json.Unmarshal([]byte(anek), &joke)
+	if err != nil {
+		log.Fatalf("Failed to unmarshal joke: %v", err)
+	}
 	lenArr := len(joke)
-	botToken := helpFunc.GetTextFromFile("./token/botToken.txt")
+	botToken := helpFunc.GetTextFromFile("./token/botTokenTest.txt")
 	bot, err := tgbotapi.NewBotAPI(botToken)
 	if err != nil {
 		log.Panic(err)
@@ -40,16 +47,69 @@ func main() {
 	u.Timeout = 60
 	updates := bot.GetUpdatesChan(u)
 
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+
+	var wg sync.WaitGroup
+	updatesChan := make(chan tgbotapi.Update, maxConcurrency)
+
+	// Запуск горутин для обработки обновлений
+	for i := 0; i < maxConcurrency; i++ {
+		wg.Add(1)
+		go updateWorker(ctx, bot, db, luceneHost, joke, lenArr, updatesChan, &wg)
+	}
+
 	for update := range updates {
-		workerPool <- struct{}{}
-		go func(update tgbotapi.Update) {
-			defer func() { <-workerPool }()
+		select {
+		case <-ctx.Done():
+			break
+		case updatesChan <- update:
+		}
+	}
+
+	// Дождаться завершения всех горутин перед выходом
+	wg.Wait()
+}
+
+func updateWorker(ctx context.Context, bot *tgbotapi.BotAPI, db *gorm.DB, luceneHost string, joke []string, lenArr int, updatesChan <-chan tgbotapi.Update, wg *sync.WaitGroup) {
+	defer wg.Done()
+
+	for {
+		select {
+		case <-ctx.Done():
+			return
+		case update, ok := <-updatesChan:
+			if !ok {
+				return
+			}
+
 			processUpdate(bot, db, update, luceneHost, joke, lenArr)
-		}(update)
+		}
 	}
 }
 
+//type UpdateBatch struct {
+//	Updates []tgbotapi.Update
+//}
+//
+//func processUpdateBatch(bot *tgbotapi.BotAPI, db *gorm.DB, batch UpdateBatch, luceneHost string, joke []string, lenArr int) {
+//	workerPool <- struct{}{} // Захватываем слот семафора
+//	defer func() { <-workerPool }()
+//
+//	for _, update := range batch.Updates {
+//		processUpdate(bot, db, update, luceneHost, joke, lenArr)
+//	}
+//}
+
 func processUpdate(bot *tgbotapi.BotAPI, db *gorm.DB, update tgbotapi.Update, luceneHost string, joke []string, lenArr int) {
+	defer func() {
+		if r := recover(); r != nil {
+			errorMessage := "Извините, произошла внутренняя ошибка. Мы работаем над ее решением."
+			helpFunc.SendMessage(bot, update.Message.Chat.ID, errorMessage)
+			log.Println("Recovered from panic:", r)
+		}
+	}()
+
 	switch {
 	case update.InlineQuery != nil:
 		handleInlineQuery(bot, update.InlineQuery, luceneHost)
@@ -62,26 +122,47 @@ func processUpdate(bot *tgbotapi.BotAPI, db *gorm.DB, update tgbotapi.Update, lu
 }
 
 func handleInlineQuery(bot *tgbotapi.BotAPI, inlineQuery *tgbotapi.InlineQuery, luceneHost string) {
-
 	anekdoty := commandModule.FindAnek(inlineQuery.Query, luceneHost)
 
 	var articles []interface{}
-	for _, anek := range anekdoty {
-		article := tgbotapi.NewInlineQueryResultArticle(string(rune(rand.Intn(100000))), " ", anek)
-		article.Description = anek
+	var articleGroup sync.WaitGroup
+	var mu sync.Mutex // Mutex для синхронизации доступа к разделяемым данным
 
-		articles = append(articles, article)
+	// Определение максимального числа одновременно работающих горутин
+	maxConcurrency := 10
+	semaphore := make(chan struct{}, maxConcurrency)
+
+	for _, anek := range anekdoty {
+		articleGroup.Add(1)
+		semaphore <- struct{}{} // Захватываем слот семафора
+
+		go func(anek string) {
+			defer func() {
+				<-semaphore // Освобождаем слот семафора
+				articleGroup.Done()
+			}()
+
+			article := tgbotapi.NewInlineQueryResultArticle(helpFunc.GenerateUniqueID(anek), " ", anek)
+			article.Description = anek
+
+			mu.Lock()
+			articles = append(articles, article)
+			mu.Unlock()
+		}(anek)
 	}
+
+	articleGroup.Wait()
+
 	inlineConf := tgbotapi.InlineConfig{
 		InlineQueryID: inlineQuery.ID,
 		IsPersonal:    true,
 		CacheTime:     0,
 		Results:       articles,
 	}
-	if _, err := bot.Request(inlineConf); err != nil {
-		log.Println(err)
-	}
 
+	if _, err := bot.Request(inlineConf); err != nil {
+		log.Println("Error sending inline query results:", err)
+	}
 }
 
 func handleMessage(bot *tgbotapi.BotAPI, db *gorm.DB, message *tgbotapi.Message, joke []string, lenArr int) {
@@ -238,7 +319,7 @@ func handleMessage(bot *tgbotapi.BotAPI, db *gorm.DB, message *tgbotapi.Message,
 				var usersR models.Users
 				var output []string
 				db.Table("users_groups").Find(&users, "group_id =?", chatID)
-
+				realLenUsers := strconv.Itoa(len(users))
 				//db.Table("users_groups").Select("bunny_count, tomato_count").First(&userGroup, userID, chatID)
 				db.Table("users_groups").Select("user_id, bunny_count, tomato_count").Order("bunny_count + tomato_count desc").Limit(5).Find(&users, "group_id = ?", chatID)
 
@@ -251,7 +332,7 @@ func handleMessage(bot *tgbotapi.BotAPI, db *gorm.DB, message *tgbotapi.Message,
 					output = append(output, info)
 				}
 				sentence := strings.Join(output, "")
-				msg.Text = "Топ 5: \n" + sentence + "Из суммарно: " + strconv.Itoa(len(users)) + " человек(а)"
+				msg.Text = "Топ 5: \n" + sentence + "Из суммарно: " + realLenUsers + " человек(а)"
 			} else {
 				msg.Text = "Данная команда работает только в группах"
 			}
@@ -279,27 +360,28 @@ func handleMessage(bot *tgbotapi.BotAPI, db *gorm.DB, message *tgbotapi.Message,
 			msg.Text = time.Now().String()
 		default:
 			imgPath := "./token/What.png"
-			helpFunc.SendImage(bot, chatID, imgPath)
-			msg.Text = ""
-
+			helpFunc.SendImage(bot, chatID, imgPath, "Wait")
+			msg.Text = "What?"
 		}
+
+		defer func() {
+			if r := recover(); r != nil {
+				errorMessage := "Извините, произошла внутренняя ошибка. Мы работаем над ее решением."
+				helpFunc.SendMessage(bot, message.Chat.ID, errorMessage)
+				log.Println("Recovered from panic:", r)
+			}
+		}()
 
 		if _, err := bot.Send(msg); err != nil {
 			log.Panic(err)
 		}
 
-		defer func() {
-			if r := recover(); r != nil {
-				log.Println("Recovered from panic:", r)
-				// Выполните здесь необходимые действия после паники
-			}
-		}()
 	}
 	if message.Text == "По названию" {
 		msg.Text = "Напишите город в котором хотите узнать погоду"
 		msg.ReplyMarkup = tgbotapi.ForceReply{ForceReply: true}
 		if _, err := bot.Send(msg); err != nil {
-			log.Panic(err)
+			log.Println("Error City Name: ", err)
 		}
 	}
 
@@ -310,27 +392,37 @@ func handleMessage(bot *tgbotapi.BotAPI, db *gorm.DB, message *tgbotapi.Message,
 			msg.Text = commandModule.GetWeatherByLocation(message.Location.Latitude, message.Location.Longitude)
 		}
 		if _, err := bot.Send(msg); err != nil {
-			log.Panic(err)
+			log.Println("Error Reply: ", err)
 		}
 	}
 }
 
 func handleCallbackQuery(bot *tgbotapi.BotAPI, callbackQuery *tgbotapi.CallbackQuery) {
-	callback := tgbotapi.NewCallback(callbackQuery.ID, callbackQuery.Data)
-
-	if _, err := bot.Request(callback); err != nil {
-		panic(err)
+	// Проверяем, что callbackQuery не nil
+	if callbackQuery == nil {
+		log.Println("Received nil callbackQuery")
+		return
 	}
 
+	// Отправляем подтверждение о получении колбэка
+	callback := tgbotapi.NewCallback(callbackQuery.ID, callbackQuery.Data)
+	if _, err := bot.Request(callback); err != nil {
+		log.Println("Error sending callback confirmation:", err)
+		return
+	}
+
+	// Получаем текст гороскопа
 	horoscopeText := strings.ToUpper(callbackQuery.Data) + ": " + commandModule.GetHoroscope(callbackQuery.Data)
 	msg := tgbotapi.NewMessage(callbackQuery.Message.Chat.ID, horoscopeText)
-	_, err := bot.Send(msg)
-	if err != nil {
-		return
+
+	// Отправляем новое сообщение
+	if _, err := bot.Send(msg); err != nil {
+		log.Println("Error sending horoscope message:", err)
 	}
-	del := tgbotapi.NewDeleteMessage(callbackQuery.Message.Chat.ID, callbackQuery.Message.MessageID)
-	_, err = bot.Send(del)
-	if err != nil {
-		return
+
+	// Удаляем старое сообщение с инлайн-кнопками
+	deleteMsg := tgbotapi.NewDeleteMessage(callbackQuery.Message.Chat.ID, callbackQuery.Message.MessageID)
+	if _, err := bot.Request(deleteMsg); err != nil {
+		log.Println("Error deleting inline keyboard message:", err)
 	}
 }
