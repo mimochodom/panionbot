@@ -113,8 +113,6 @@ func HandleCommandBunnyTomato(bot *tgbotapi.BotAPI, db *gorm.DB, chatID int64, g
 		}
 	}
 
-	// Дальнейшая обработка игры bunny-tomato
-
 	return "Результат игры"
 }
 
