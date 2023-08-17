@@ -119,7 +119,7 @@ func HandleCommandGroupStat(db *gorm.DB, chatID int64) string {
 	var output []string
 	var usersR models.Users
 
-	db.Table("users_groups").Find(&users, "group_id =?", chatID)
+	realNumbersOfUsersInGroup := db.Table("users_groups").Find(&users, "group_id =?", chatID).RowsAffected
 	db.Table("users_groups").Select("user_id, bunny_count, tomato_count").Order("bunny_count + tomato_count desc").Limit(5).Find(&users, "group_id = ?", chatID)
 
 	for _, user := range users {
@@ -133,7 +133,7 @@ func HandleCommandGroupStat(db *gorm.DB, chatID int64) string {
 	}
 
 	sentence := strings.Join(output, "")
-	return "Топ 5: \n" + sentence + "Из суммарно: " + strconv.Itoa(len(users)) + " человек(а)"
+	return "Топ 5: \n" + sentence + "Из суммарно: " + strconv.Itoa(int(realNumbersOfUsersInGroup)) + " человек(а)"
 }
 
 func HandleCommandMyStat(db *gorm.DB, userID int, chatID int64) string {
