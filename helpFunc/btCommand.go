@@ -10,8 +10,7 @@ import (
 	"time"
 )
 
-func HandleCommandReg(db *gorm.DB, userID int64, chatID int64, groupName string) string {
-	var user models.Users
+func HandleCommandReg(db *gorm.DB, user models.Users, userID int64, chatID int64, groupName string) string {
 	var userGroup models.UsersGroups
 
 	if db.First(&models.UsersGroups{}, "user_id = ? and group_id = ?", userID, chatID).RowsAffected > 0 {
@@ -27,8 +26,7 @@ func HandleCommandReg(db *gorm.DB, userID int64, chatID int64, groupName string)
 	return "Вы успешно зарегистрировались в этой замечательной онлайн-игре \"Зайки-Томатики\""
 }
 
-func HandleCommandBunnyTomato(bot *tgbotapi.BotAPI, db *gorm.DB, chatID int64, groupName string) string {
-	var group models.Groups
+func HandleCommandBunnyTomato(bot *tgbotapi.BotAPI, db *gorm.DB, group models.Groups, chatID int64, groupName string) string {
 	var users []models.Users
 
 	if db.First(&group, "group_id = ?", chatID).RowsAffected == 0 {
@@ -76,7 +74,7 @@ func HandleCommandBunnyTomato(bot *tgbotapi.BotAPI, db *gorm.DB, chatID int64, g
 			}
 
 			db.Save(&users)
-			return "Повезло тебе, ты сегодня никакой: " + bunny.UserName
+			return "На трон села, на трон села, царь во дворца: " + bunny.UserName
 
 		} else {
 			bot.Send(md)

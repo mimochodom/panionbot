@@ -3,7 +3,6 @@ package main
 import (
 	"context"
 	"encoding/json"
-	"fmt"
 	tgbotapi "github.com/go-telegram-bot-api/telegram-bot-api/v5"
 	"gorm.io/gorm"
 	"log"
@@ -12,6 +11,7 @@ import (
 	"panionbot/helpFunc"
 	"panionbot/keyboard"
 	"panionbot/models"
+	"strconv"
 	"strings"
 	"sync"
 	"time"
@@ -20,7 +20,7 @@ import (
 var joke []string
 
 // var workerPool = make(chan struct{}, 250000)
-const maxConcurrency = 24
+const maxConcurrency = 100000
 
 func main() {
 
@@ -32,7 +32,7 @@ func main() {
 		log.Fatalf("Failed to unmarshal joke: %v", err)
 	}
 	lenArr := len(joke)
-	botToken := helpFunc.GetTextFromFile("./token/botTokenTest.txt")
+	botToken := helpFunc.GetTextFromFile("./token/botToken.txt")
 	bot, err := tgbotapi.NewBotAPI(botToken)
 	if err != nil {
 		log.Panic(err)
@@ -65,8 +65,6 @@ func main() {
 		case updatesChan <- update:
 		}
 	}
-
-	// Дождаться завершения всех горутин перед выходом
 	wg.Wait()
 }
 
@@ -91,7 +89,9 @@ func processUpdate(bot *tgbotapi.BotAPI, db *gorm.DB, update tgbotapi.Update, lu
 	defer func() {
 		if r := recover(); r != nil {
 			errorMessage := "Извините, произошла внутренняя ошибка. Мы работаем над ее решением."
+			adminID, _ := strconv.ParseInt((helpFunc.GetTextFromFile("./token/adminID.txt")), 10, 64)
 			helpFunc.SendMessage(bot, update.Message.Chat.ID, errorMessage)
+			helpFunc.SendMessage(bot, adminID, errorMessage)
 			log.Println("Recovered from panic:", r)
 		}
 	}()
@@ -166,7 +166,6 @@ func handleMessage(bot *tgbotapi.BotAPI, db *gorm.DB, message *tgbotapi.Message,
 	user.UserName = userName
 	group.GroupName = groupName
 	group.GroupID = chatID
-	fmt.Println(message.Text)
 	msg := tgbotapi.NewMessage(message.Chat.ID, message.Text)
 
 	if db.First(&user, "user_id = ?", userID).RowsAffected > 0 {
@@ -195,7 +194,7 @@ func handleMessage(bot *tgbotapi.BotAPI, db *gorm.DB, message *tgbotapi.Message,
 			}
 		case "reg":
 			if helpFunc.IsGroupChat(message.Chat.Type) {
-				result := helpFunc.HandleCommandReg(db, userID, chatID, groupName)
+				result := helpFunc.HandleCommandReg(db, user, userID, chatID, groupName)
 
 				msg.Text = result
 
@@ -204,7 +203,7 @@ func handleMessage(bot *tgbotapi.BotAPI, db *gorm.DB, message *tgbotapi.Message,
 			}
 		case "bunny_tomato":
 			if helpFunc.IsGroupChat(message.Chat.Type) {
-				result := helpFunc.HandleCommandBunnyTomato(bot, db, chatID, groupName)
+				result := helpFunc.HandleCommandBunnyTomato(bot, db, group, chatID, groupName)
 
 				msg.Text = result
 
@@ -240,7 +239,10 @@ func handleMessage(bot *tgbotapi.BotAPI, db *gorm.DB, message *tgbotapi.Message,
 		defer func() {
 			if r := recover(); r != nil {
 				errorMessage := "Извините, произошла внутренняя ошибка. Мы работаем над ее решением."
+				adminID, _ := strconv.ParseInt((helpFunc.GetTextFromFile("./token/adminID.txt")), 10, 64)
 				helpFunc.SendMessage(bot, message.Chat.ID, errorMessage)
+
+				helpFunc.SendMessage(bot, adminID, errorMessage)
 				log.Println("Recovered from panic:", r)
 			}
 		}()

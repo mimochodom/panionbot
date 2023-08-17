@@ -62,7 +62,7 @@ func isMn(r rune) bool {
 }
 
 func SetupDatabase() (*gorm.DB, error) {
-	dsn := GetTextFromFile("./token/dbConfigTest.txt")
+	dsn := GetTextFromFile("./token/dbConfig.txt")
 	return gorm.Open(postgres.Open(dsn), &gorm.Config{})
 }
 
