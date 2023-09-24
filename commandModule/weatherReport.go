@@ -38,11 +38,9 @@ func GetWeatherByName(cityName string) string {
 	if err2 != nil {
 		return "JSON: CANT UNMARSHAL"
 	}
-	temp := fmt.Sprintf("%.2f", w.Main.Temp)
-	feelsLike := fmt.Sprintf("%.2f", w.Main.FeelsLike)
-	windSpeed := fmt.Sprintf("%.2f", w.Wind.Speed)
-	prognoz := cityName + ": температура " + temp + "°C " + w.Weather[0].Description + " ветер " + windSpeed + " м/с ошущается как " + feelsLike + "°C"
-	return prognoz
+
+	report := weatherOutputTemplate(cityName, w.Main.Temp, w.Weather[0].Description, w.Wind.Speed, w.Main.FeelsLike)
+	return report
 }
 
 func GetWeatherByLocation(lat float64, lon float64) string {
@@ -76,11 +74,18 @@ func GetWeatherByLocation(lat float64, lon float64) string {
 	if err2 != nil {
 		return "JSON: CANT UNMARSHAL"
 	}
-	temp := fmt.Sprintf("%.2f", w.Main.Temp)
-	feelsLike := fmt.Sprintf("%.2f", w.Main.FeelsLike)
-	windSpeed := fmt.Sprintf("%.2f", w.Wind.Speed)
-	prognoz := w.Name + ": температура " + temp + "°C " + w.Weather[0].Description + " ветер " + windSpeed + " м/с ошущается как " + feelsLike + "°C"
-	return prognoz
+	report := weatherOutputTemplate(w.Name, w.Main.Temp, w.Weather[0].Description, w.Wind.Speed, w.Main.FeelsLike)
+
+	return report
+}
+
+func weatherOutputTemplate(cityName string, temp float64, description string, windSpeed float64, feelLike float64) string {
+	tempTemplate := fmt.Sprintf("%.1f", temp)
+	feelsLikeTemplate := fmt.Sprintf("%.1f", feelLike)
+	windSpeedTemplate := fmt.Sprintf("%.1f", windSpeed)
+	report := cityName + ": температура " + tempTemplate + "°C " + description + " ветер " + windSpeedTemplate + " м/с ошущается как " + feelsLikeTemplate + "°C"
+
+	return report
 }
 
 type weather struct {

@@ -21,17 +21,22 @@ func horoscopeParse(url string) string {
 			fmt.Println(err)
 		}
 	}(res.Body)
+
 	if res.StatusCode != 200 {
 		log.Fatalf("status code error: %d %s", res.StatusCode, res.Status)
 	}
 
 	// Load the HTML document
 	doc, err := goquery.NewDocumentFromReader(res.Body)
+
 	if err != nil {
 		log.Fatal(err)
 	}
+
 	textHoroscope := doc.Find(".text-link").Contents().Text()
-	return helpFunc.DecoderToWin1251(textHoroscope)
+	horoscope := helpFunc.DecoderToWin1251(textHoroscope)
+
+	return horoscope
 }
 
 func GetHoroscope(znak string) string {

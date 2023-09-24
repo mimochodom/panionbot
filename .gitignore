@@ -58,3 +58,4 @@ _testmain.go
 /test.go
 /commandModule/testHello.go
 /token/
+/testfunction/
