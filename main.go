@@ -20,7 +20,7 @@ import (
 var joke []string
 
 // var workerPool = make(chan struct{}, 250000)
-const maxConcurrency = 100000
+const maxConcurrency = 100
 
 func main() {
 
