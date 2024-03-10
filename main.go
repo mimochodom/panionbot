@@ -107,6 +107,10 @@ func processUpdate(bot *tgbotapi.BotAPI, db *gorm.DB, update tgbotapi.Update, lu
 	}
 }
 
+type OneAnek struct {
+	Text string `json:"text"`
+}
+
 func handleInlineQuery(bot *tgbotapi.BotAPI, inlineQuery *tgbotapi.InlineQuery, luceneHost string) {
 	anekdoty := commandModule.FindAnek(inlineQuery.Query, luceneHost)
 
@@ -115,26 +119,48 @@ func handleInlineQuery(bot *tgbotapi.BotAPI, inlineQuery *tgbotapi.InlineQuery, 
 	var mu sync.Mutex // Mutex для синхронизации доступа к разделяемым данным
 
 	// Определение максимального числа одновременно работающих горутин
-	maxConcurrency := 10
+	maxConcurrency := 25
 	semaphore := make(chan struct{}, maxConcurrency)
 
-	for _, anek := range anekdoty {
+	if len(anekdoty.Items) > 50 {
 		articleGroup.Add(1)
-		semaphore <- struct{}{} // Захватываем слот семафора
+		var s string
+		s = "Больше 50 результатов. Добавьте еще пару слов"
+		article := tgbotapi.NewInlineQueryResultArticle(helpFunc.GenerateUniqueID(s), " ", s)
+		article.Description = s
+		mu.Lock()
+		articles = append(articles, article)
+		mu.Unlock()
+		articleGroup.Done()
+	} else if len(anekdoty.Items) == 0 {
+		articleGroup.Add(1)
+		var s string
+		s = "Empty :( (анекдотов не найдено)"
+		article := tgbotapi.NewInlineQueryResultArticle(helpFunc.GenerateUniqueID(s), " ", s)
+		article.Description = s
+		mu.Lock()
+		articles = append(articles, article)
+		mu.Unlock()
+		articleGroup.Done()
+	} else {
+		for _, anek := range anekdoty.Items {
+			articleGroup.Add(1)
+			semaphore <- struct{}{} // Захватываем слот семафора
 
-		go func(anek string) {
-			defer func() {
-				<-semaphore // Освобождаем слот семафора
-				articleGroup.Done()
-			}()
+			go func(anek OneAnek) {
+				defer func() {
+					<-semaphore // Освобождаем слот семафора
+					articleGroup.Done()
+				}()
 
-			article := tgbotapi.NewInlineQueryResultArticle(helpFunc.GenerateUniqueID(anek), " ", anek)
-			article.Description = anek
+				article := tgbotapi.NewInlineQueryResultArticle(helpFunc.GenerateUniqueID(anek.Text), " ", anek.Text)
+				article.Description = anek.Text
 
-			mu.Lock()
-			articles = append(articles, article)
-			mu.Unlock()
-		}(anek)
+				mu.Lock()
+				articles = append(articles, article)
+				mu.Unlock()
+			}(anek)
+		}
 	}
 
 	articleGroup.Wait()
@@ -142,7 +168,7 @@ func handleInlineQuery(bot *tgbotapi.BotAPI, inlineQuery *tgbotapi.InlineQuery, 
 	inlineConf := tgbotapi.InlineConfig{
 		InlineQueryID: inlineQuery.ID,
 		IsPersonal:    true,
-		CacheTime:     0,
+		CacheTime:     1,
 		Results:       articles,
 	}
 
