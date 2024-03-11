@@ -112,17 +112,7 @@ func handleInlineQuery(bot *tgbotapi.BotAPI, inlineQuery *tgbotapi.InlineQuery, 
 	maxConcurrency := 25
 	semaphore := make(chan struct{}, maxConcurrency)
 
-	if len(anekdoty.Items) > 50 {
-		articleGroup.Add(1)
-		var s string
-		s = "Больше 50 результатов. Добавьте еще пару слов"
-		article := tgbotapi.NewInlineQueryResultArticle(helpFunc.GenerateUniqueID(s), " ", s)
-		article.Description = s
-		mu.Lock()
-		articles = append(articles, article)
-		mu.Unlock()
-		articleGroup.Done()
-	} else if len(anekdoty.Items) == 0 {
+	if len(anekdoty.Items) == 0 {
 		articleGroup.Add(1)
 		var s string
 		s = "Empty :( (анекдотов не найдено)"
@@ -133,7 +123,7 @@ func handleInlineQuery(bot *tgbotapi.BotAPI, inlineQuery *tgbotapi.InlineQuery, 
 		mu.Unlock()
 		articleGroup.Done()
 	} else {
-		for _, anek := range anekdoty.Items {
+		for i, anek := range anekdoty.Items {
 			articleGroup.Add(1)
 			semaphore <- struct{}{} // Захватываем слот семафора
 
@@ -145,6 +135,14 @@ func handleInlineQuery(bot *tgbotapi.BotAPI, inlineQuery *tgbotapi.InlineQuery, 
 
 				article := tgbotapi.NewInlineQueryResultArticle(helpFunc.GenerateUniqueID(anek.Text), " ", anek.Text)
 				article.Description = anek.Text
+
+				if i == 0 {
+					if len(anekdoty.Items) == 50 {
+						article.Title = "Результатов: >50. Отображено: 50. Уточните запрос"
+					} else {
+						article.Title = "Результатов:" + string(len(anekdoty.Items))
+					}
+				}
 
 				mu.Lock()
 				articles = append(articles, article)
@@ -198,6 +196,8 @@ func handleMessage(bot *tgbotapi.BotAPI, db *gorm.DB, message *tgbotapi.Message,
 			msg.Text = commandModule.FindRandomAnek(0, luceneHost)
 		case "anek_1":
 			msg.Text = commandModule.FindRandomAnek(1, luceneHost)
+		case "anek_2":
+			msg.Text = commandModule.FindRandomAnek(2, luceneHost)
 		case "horoscope":
 			msg.ReplyMarkup = keyboard.Horoscope
 

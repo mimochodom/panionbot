@@ -22,6 +22,9 @@ func FindRandomAnek(src int, url string) string {
 	if src == 1 {
 		srcTable = "anecdoticaAneks"
 	}
+	if src == 2 {
+		srcTable = "anekdotRuAneks"
+	}
 
 	req := "select count(*) from " + srcTable
 	data := []byte(req)

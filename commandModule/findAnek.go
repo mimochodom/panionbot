@@ -19,7 +19,9 @@ type Aneks struct {
 func FindAnek(req string, url string) Aneks {
 	spl := strings.Replace(req, " ", "~ +", -1)
 	spl = "+" + spl + "~"
-	req = "select text from telegramAneks where text = '" + spl + "'"
+	req = "select text from telegramAneks where text = '" + spl + "'" +
+		"MERGE (select text from anecdoticaAneks where text = '" + spl + "')" +
+		"MERGE (select text from anekdotRuAneks where text = '" + spl + "') LIMIT 50 OFFSET 0"
 	data := []byte(req)
 	r := bytes.NewReader(data)
 	res, err := http.Post(url, "application/json", r)
