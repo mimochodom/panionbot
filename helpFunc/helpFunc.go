@@ -2,8 +2,6 @@ package helpFunc
 
 import (
 	"bytes"
-	"crypto/md5"
-	"encoding/hex"
 	tgbotapi "github.com/go-telegram-bot-api/telegram-bot-api/v5"
 	"golang.org/x/text/encoding/charmap"
 	"golang.org/x/text/transform"
@@ -85,12 +83,6 @@ func SelectRandomItem[T any](items []T) T {
 
 	randomIndex := random.Intn(len(items))
 	return items[randomIndex]
-}
-
-func GenerateUniqueID(input string) string {
-	hasher := md5.New()
-	hasher.Write([]byte(input))
-	return hex.EncodeToString(hasher.Sum(nil))
 }
 
 func SendMessage(bot *tgbotapi.BotAPI, chatID int64, text string) {

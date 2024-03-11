@@ -3,6 +3,7 @@ package main
 import (
 	"context"
 	tgbotapi "github.com/go-telegram-bot-api/telegram-bot-api/v5"
+	uuid "github.com/satori/go.uuid"
 	"gorm.io/gorm"
 	"log"
 	"panionbot/commandModule"
@@ -112,18 +113,8 @@ func handleInlineQuery(bot *tgbotapi.BotAPI, inlineQuery *tgbotapi.InlineQuery, 
 	maxConcurrency := 25
 	semaphore := make(chan struct{}, maxConcurrency)
 
-	if len(anekdoty.Items) == 0 {
-		articleGroup.Add(1)
-		var s string
-		s = "Empty :( (анекдотов не найдено)"
-		article := tgbotapi.NewInlineQueryResultArticle(helpFunc.GenerateUniqueID(s), s, s)
-		article.Description = s
-		mu.Lock()
-		articles = append(articles, article)
-		mu.Unlock()
-		articleGroup.Done()
-	} else {
-		for i, anek := range anekdoty.Items {
+	if len(anekdoty.Items) != 0 {
+		for _, anek := range anekdoty.Items {
 			articleGroup.Add(1)
 			semaphore <- struct{}{} // Захватываем слот семафора
 
@@ -133,16 +124,8 @@ func handleInlineQuery(bot *tgbotapi.BotAPI, inlineQuery *tgbotapi.InlineQuery, 
 					articleGroup.Done()
 				}()
 
-				article := tgbotapi.NewInlineQueryResultArticle(helpFunc.GenerateUniqueID(anek.Text), " ", anek.Text)
+				article := tgbotapi.NewInlineQueryResultArticle(uuid.NewV4().String(), " ", anek.Text)
 				article.Description = anek.Text
-
-				if i == 0 {
-					if len(anekdoty.Items) == 50 {
-						article.Title = "Результатов: >50. Отображено: 50. Уточните запрос"
-					} else {
-						article.Title = "Результатов:" + string(len(anekdoty.Items))
-					}
-				}
 
 				mu.Lock()
 				articles = append(articles, article)
@@ -155,8 +138,16 @@ func handleInlineQuery(bot *tgbotapi.BotAPI, inlineQuery *tgbotapi.InlineQuery, 
 
 	if len(anekdoty.Items) == 50 {
 		articles[0].Title = "Результатов: >50. Отображено: 50. Уточните запрос"
+	} else if len(anekdoty.Items) != 0 {
+		articles[0].Title = "Результатов: " + strconv.Itoa(len(anekdoty.Items))
 	} else {
-		articles[0].Title = "Результатов:" + string(len(anekdoty.Items))
+		articleGroup.Add(1)
+		s := "Empty :( (анекдотов не найдено)"
+		article := tgbotapi.NewInlineQueryResultArticle(s, s, s)
+		mu.Lock()
+		articles = append(articles, article)
+		mu.Unlock()
+		articleGroup.Done()
 	}
 
 	b := make([]interface{}, len(articles))
