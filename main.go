@@ -104,7 +104,7 @@ type OneAnek struct {
 func handleInlineQuery(bot *tgbotapi.BotAPI, inlineQuery *tgbotapi.InlineQuery, luceneHost string) {
 	anekdoty := commandModule.FindAnek(inlineQuery.Query, luceneHost)
 
-	var articles []interface{}
+	var articles []tgbotapi.InlineQueryResultArticle
 	var articleGroup sync.WaitGroup
 	var mu sync.Mutex // Mutex для синхронизации доступа к разделяемым данным
 
@@ -116,7 +116,7 @@ func handleInlineQuery(bot *tgbotapi.BotAPI, inlineQuery *tgbotapi.InlineQuery, 
 		articleGroup.Add(1)
 		var s string
 		s = "Empty :( (анекдотов не найдено)"
-		article := tgbotapi.NewInlineQueryResultArticle(helpFunc.GenerateUniqueID(s), " ", s)
+		article := tgbotapi.NewInlineQueryResultArticle(helpFunc.GenerateUniqueID(s), s, s)
 		article.Description = s
 		mu.Lock()
 		articles = append(articles, article)
@@ -153,11 +153,22 @@ func handleInlineQuery(bot *tgbotapi.BotAPI, inlineQuery *tgbotapi.InlineQuery, 
 
 	articleGroup.Wait()
 
+	if len(anekdoty.Items) == 50 {
+		articles[0].Title = "Результатов: >50. Отображено: 50. Уточните запрос"
+	} else {
+		articles[0].Title = "Результатов:" + string(len(anekdoty.Items))
+	}
+
+	b := make([]interface{}, len(articles))
+	for i := range articles {
+		b[i] = articles[i]
+	}
+
 	inlineConf := tgbotapi.InlineConfig{
 		InlineQueryID: inlineQuery.ID,
 		IsPersonal:    true,
-		CacheTime:     1,
-		Results:       articles,
+		CacheTime:     0,
+		Results:       b,
 	}
 
 	if _, err := bot.Request(inlineConf); err != nil {
