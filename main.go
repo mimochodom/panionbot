@@ -2,11 +2,10 @@ package main
 
 import (
 	"context"
-	"encoding/json"
 	tgbotapi "github.com/go-telegram-bot-api/telegram-bot-api/v5"
+	uuid "github.com/satori/go.uuid"
 	"gorm.io/gorm"
 	"log"
-	"math/rand"
 	"panionbot/commandModule"
 	"panionbot/helpFunc"
 	"panionbot/keyboard"
@@ -17,21 +16,13 @@ import (
 	"time"
 )
 
-var joke []string
-
 // var workerPool = make(chan struct{}, 250000)
-const maxConcurrency = 100000
+const maxConcurrency = 100
 
 func main() {
 
 	luceneHost := helpFunc.GetTextFromFile("./token/lucene.txt")
-	anek := helpFunc.GetTextFromFile("./token/joke.json")
 	db, err := helpFunc.SetupDatabase()
-	err = json.Unmarshal([]byte(anek), &joke)
-	if err != nil {
-		log.Fatalf("Failed to unmarshal joke: %v", err)
-	}
-	lenArr := len(joke)
 	botToken := helpFunc.GetTextFromFile("./token/botToken.txt")
 	bot, err := tgbotapi.NewBotAPI(botToken)
 	if err != nil {
@@ -55,7 +46,7 @@ func main() {
 	// Запуск горутин для обработки обновлений
 	for i := 0; i < maxConcurrency; i++ {
 		wg.Add(1)
-		go updateWorker(ctx, bot, db, luceneHost, joke, lenArr, updatesChan, &wg)
+		go updateWorker(ctx, bot, db, luceneHost, updatesChan, &wg)
 	}
 
 	for update := range updates {
@@ -68,7 +59,7 @@ func main() {
 	wg.Wait()
 }
 
-func updateWorker(ctx context.Context, bot *tgbotapi.BotAPI, db *gorm.DB, luceneHost string, joke []string, lenArr int, updatesChan <-chan tgbotapi.Update, wg *sync.WaitGroup) {
+func updateWorker(ctx context.Context, bot *tgbotapi.BotAPI, db *gorm.DB, luceneHost string, updatesChan <-chan tgbotapi.Update, wg *sync.WaitGroup) {
 	defer wg.Done()
 
 	for {
@@ -80,12 +71,12 @@ func updateWorker(ctx context.Context, bot *tgbotapi.BotAPI, db *gorm.DB, lucene
 				return
 			}
 
-			processUpdate(bot, db, update, luceneHost, joke, lenArr)
+			processUpdate(bot, db, update, luceneHost)
 		}
 	}
 }
 
-func processUpdate(bot *tgbotapi.BotAPI, db *gorm.DB, update tgbotapi.Update, luceneHost string, joke []string, lenArr int) {
+func processUpdate(bot *tgbotapi.BotAPI, db *gorm.DB, update tgbotapi.Update, luceneHost string) {
 	defer func() {
 		if r := recover(); r != nil {
 			errorMessage := "Извините, произошла внутренняя ошибка. Мы работаем над ее решением."
@@ -100,50 +91,75 @@ func processUpdate(bot *tgbotapi.BotAPI, db *gorm.DB, update tgbotapi.Update, lu
 	case update.InlineQuery != nil:
 		handleInlineQuery(bot, update.InlineQuery, luceneHost)
 	case update.Message != nil:
-		handleMessage(bot, db, update.Message, joke, lenArr)
+		handleMessage(bot, db, update.Message, luceneHost)
 	case update.CallbackQuery != nil:
 		handleCallbackQuery(bot, update.CallbackQuery)
 
 	}
 }
 
+type OneAnek struct {
+	Text string `json:"text"`
+}
+
 func handleInlineQuery(bot *tgbotapi.BotAPI, inlineQuery *tgbotapi.InlineQuery, luceneHost string) {
 	anekdoty := commandModule.FindAnek(inlineQuery.Query, luceneHost)
 
-	var articles []interface{}
+	var articles []tgbotapi.InlineQueryResultArticle
 	var articleGroup sync.WaitGroup
 	var mu sync.Mutex // Mutex для синхронизации доступа к разделяемым данным
 
 	// Определение максимального числа одновременно работающих горутин
-	maxConcurrency := 10
+	maxConcurrency := 25
 	semaphore := make(chan struct{}, maxConcurrency)
 
-	for _, anek := range anekdoty {
-		articleGroup.Add(1)
-		semaphore <- struct{}{} // Захватываем слот семафора
+	if len(anekdoty.Items) != 0 {
+		for _, anek := range anekdoty.Items {
+			articleGroup.Add(1)
+			semaphore <- struct{}{} // Захватываем слот семафора
 
-		go func(anek string) {
-			defer func() {
-				<-semaphore // Освобождаем слот семафора
-				articleGroup.Done()
-			}()
+			go func(anek OneAnek) {
+				defer func() {
+					<-semaphore // Освобождаем слот семафора
+					articleGroup.Done()
+				}()
 
-			article := tgbotapi.NewInlineQueryResultArticle(helpFunc.GenerateUniqueID(anek), " ", anek)
-			article.Description = anek
+				article := tgbotapi.NewInlineQueryResultArticle(uuid.NewV4().String(), " ", anek.Text)
+				article.Description = anek.Text
 
-			mu.Lock()
-			articles = append(articles, article)
-			mu.Unlock()
-		}(anek)
+				mu.Lock()
+				articles = append(articles, article)
+				mu.Unlock()
+			}(anek)
+		}
 	}
 
 	articleGroup.Wait()
+
+	if len(anekdoty.Items) == 50 {
+		articles[0].Title = "Результатов: >50. Отображено: 50. Уточните запрос"
+	} else if len(anekdoty.Items) != 0 {
+		articles[0].Title = "Результатов: " + strconv.Itoa(len(anekdoty.Items))
+	} else {
+		articleGroup.Add(1)
+		s := "Empty :( (анекдотов не найдено)"
+		article := tgbotapi.NewInlineQueryResultArticle(s, s, s)
+		mu.Lock()
+		articles = append(articles, article)
+		mu.Unlock()
+		articleGroup.Done()
+	}
+
+	b := make([]interface{}, len(articles))
+	for i := range articles {
+		b[i] = articles[i]
+	}
 
 	inlineConf := tgbotapi.InlineConfig{
 		InlineQueryID: inlineQuery.ID,
 		IsPersonal:    true,
 		CacheTime:     0,
-		Results:       articles,
+		Results:       b,
 	}
 
 	if _, err := bot.Request(inlineConf); err != nil {
@@ -151,7 +167,7 @@ func handleInlineQuery(bot *tgbotapi.BotAPI, inlineQuery *tgbotapi.InlineQuery, 
 	}
 }
 
-func handleMessage(bot *tgbotapi.BotAPI, db *gorm.DB, message *tgbotapi.Message, joke []string, lenArr int) {
+func handleMessage(bot *tgbotapi.BotAPI, db *gorm.DB, message *tgbotapi.Message, luceneHost string) {
 	// Extracting relevant information from the update
 	user := models.Users{}
 	group := models.Groups{}
@@ -179,7 +195,11 @@ func handleMessage(bot *tgbotapi.BotAPI, db *gorm.DB, message *tgbotapi.Message,
 		case "start":
 			msg.Text = "Я пока ещё жив"
 		case "anek":
-			msg.Text = joke[rand.Intn(lenArr)-1]
+			msg.Text = commandModule.FindRandomAnek(0, luceneHost)
+		case "anek_1":
+			msg.Text = commandModule.FindRandomAnek(1, luceneHost)
+		case "anek_2":
+			msg.Text = commandModule.FindRandomAnek(2, luceneHost)
 		case "horoscope":
 			msg.ReplyMarkup = keyboard.Horoscope
 
